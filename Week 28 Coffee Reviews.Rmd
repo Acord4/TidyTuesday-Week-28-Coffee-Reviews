@@ -1,0 +1,140 @@
+---
+title: "week 28 Coffee Ratings"
+author: "Alonso Cordova"
+date: "7/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+# Load Packages
+```{r}
+library(tidyverse)
+library(lubridate)
+library(cowplot)
+library(skimr)
+library(RColorBrewer)
+
+```
+
+
+
+# Call data and do first round of formatting 
+```{r}
+
+df <- coffee_ratings
+
+df_country_n <- df %>%  
+  select(grading_date, country_of_origin) %>%
+  mutate( grading_date= mdy(grading_date),
+          country_of_origin = case_when(country_of_origin == "Tanzania, United Republic Of" ~ "Tanzania",
+                                        country_of_origin == "United States (Hawaii)" ~ "United States",
+                                        TRUE ~ country_of_origin)) 
+
+# Create review count by date count column
+df_country_n <- df_country_n %>% group_by(country_of_origin, grading_date) %>% count() %>% ungroup
+
+```
+
+
+
+
+
+# Create df to plot
+- Main idea is to count the number of reviews and then filter by most common
+- Note: country_total is created to be used as y axis labels 
+```{r}
+
+
+# Create review count column
+df_country_count <- df_country_n %>% group_by(country_of_origin) %>% count() %>% ungroup
+
+# 
+df_country_n <- left_join(df_country_n, df_country_count, by = "country_of_origin") %>% rename(n = n.x,
+                                                                                           n_total = n.y)
+
+df_country_n <- df_country_n %>% mutate(country_total = paste0(country_of_origin,' (',n_total,')'))
+%>% filter(n_total > 20)
+
+
+
+```
+
+
+
+
+# Create mycolors df to use in scale_fill_manual
+- Note: This method is necessary to extend colors past the default 8
+```{r}
+set.seed(100)
+
+nb.cols <- 15
+mycolors <- colorRampPalette(brewer.pal(8, "Dark2"))(nb.cols)   # Expands palette beyond default 8
+```
+
+
+
+# Plot data
+```{r}
+
+p1 <- ggplot(df_country_n, aes(grading_date, fct_reorder(country_total, n_total) , size = n, color = country_total)) + 
+  geom_point(alpha=0.7)+
+  scale_x_date(date_labels = '%Y', breaks = "1 year")+
+  theme_minimal() +
+  scale_fill_manual(values=mycolors)+
+  labs(title = '',  # need to refer to the elements here. 
+       subtitle = 'Coffe Review Counts by Country of Origin: 2010-2018',
+       x = '',
+       y = '',
+       fill = '',
+       size = 'Reference:' ) +  # note size is specified as country_total and that is what the label changes too
+  guides(color = FALSE) +
+  theme (
+    plot.title        = element_text(face = 'bold', size = 14, hjust = .5, vjust = -4),
+    plot.subtitle     = element_text( size = 12),
+    plot.caption      = element_text(size = 8),
+    ##
+    panel.background  = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    # panel.grid        = element_blank(),
+    # panel.grid.major.x  = element_line(size = 0.1, linetype = 'solid',
+    #                                 colour = "black"),
+    legend.title = element_text(size = 10),
+    legend.position    = "bottom", 
+    #legend.text = element_text(face = 'bold', size = 10),
+    # legend.direction   = 'horizontal',
+    ##
+    axis.title.x      = element_text(face = 'bold', size = 10),
+    axis.text.x       = element_text(face = 'bold', size = 10),
+    ##
+    axis.title.y      = element_text(face = 'bold', size = 10),
+    axis.text.y       = element_text(face = 'bold', size = 10),
+    ##
+    axis.ticks        = element_blank(),
+    plot.margin       = unit(c(.25, .25, .25, .25), "in")) #+
+
+p1
+```
+
+
+
+
+# Add sub title with cowplot
+```{r}
+
+plots <- plot_grid( p1, ncol =1,  rel_heights = c(0.05, 1))
+
+plots <- add_sub(plots,"      Data: Coffee Quality Institute \n    TidyTuesday Week 28: @alocord ", 
+                 size = 10, colour = 'black', x = .5, hjust = -1.35)
+
+plots <- plot_grid(plots, ncol = 1, rel_heights = c(0.05, 0.90))
+
+plots
+
+```
+
